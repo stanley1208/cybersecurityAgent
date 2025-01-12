@@ -1,60 +1,59 @@
 from flask import Flask,request,jsonify
 import re
-from sklearn.ensemble import RandomForestClassifier
+import joblib
 import numpy as np
 
 
 app=Flask(__name__)
 
+# Load a pre-trained phishing detection model (placeholder)
+model=joblib.load('phishing_detector_model.pkl')    # Replace with actual model
 
 # Example criteria for fraud detection
-def analyze_account(data):
+def extract_features(email_data):
     """
-    Analyzes Instagram account data and returns a fraud probability score.
+    Extracts features from email content for phishing detection.
     """
     # Extract account features
-    username=data.get("username","")
-    bio=data.get("bio","")
-    followers=data.get("followers","")
-    following=data.get("following","")
-    posts=data.get("posts",0)
+    subject=email_data.get("subject","")
+    body=email_data.get("body","")
+    sender=email_data.get("sender","")
+    links=re.findall(r'http[s]?://\S+',body)
 
-    # Feature engineering
-    suspicious_keywords=["giveaway","free","click here","winner","dm me"]
-    suspicious_bio=any(word in bio.lower() for word in suspicious_keywords)
-    suspicious_username=bool(re.search(r"(\d{4,}|free|cash|win)",username.lower()))
-    engagement_rate=(posts/max(followers,1))*100    # Avoid division by zero
-
-    # Define simple heuristics for fraud
-    is_fraud=(
-        suspicious_bio or
-        suspicious_username or
-        (followers >10000 and posts <5) or
-        engagement_rate<1
-    )
-
-    return {
-        "is_fraud":is_fraud,
-        "reason":(
-            "Suspicious bio" if suspicious_bio else
-            "Suspicious username" if suspicious_username else
-            "Low enganemwnt rate" if engagement_rate < 1 else
-            "Unusual followers-to-posts ratio"
-        )
+    # Example features
+    features={
+        "has_suspicious_links":any("@" not in link.split("/")[2] for link in links),
+        "urgent_language":any(word in body.lower() for word in ["urgent","act now","verify"]),
+        "unusual_sender":sender.endswith("xyz") or sender.startswith("no-reply"),
     }
+    return np.array(list(features.values())).reshape(1,-1)
 
-@app.route('/detect', methods=['POST'])
-def detect_fraud():
-    # Get account data from request
-    account_data=request.json
+
+
+
+
+
+@app.route('/detect_phishing', methods=['POST'])
+def detect_phishing():
+
+    email_data=request.json
 
     # Validate input
-    if not account_data:
-        return jsonify({"error":"Invalid input. Provide account data."}), 400
+    if not email_data:
+        return jsonify({"error":"Invalid input. Provide email data."}), 400
 
-    # Analyze account
-    result=analyze_account(account_data)
+    features=extract_features(email_data)
+    prediction=model.predict(features)[0]
+    probability=model.predict_proba(features)[0,1]
+
+    result={
+        "is_phishing":bool(prediction),
+        "confidence":probability,
+        "reason":"Detected phishing indicators in the email." if prediction else "No significant phishing indicators detected.",
+    }
+
     return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
