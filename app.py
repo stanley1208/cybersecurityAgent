@@ -8,13 +8,11 @@ import tldextract
 
 app=Flask(__name__)
 
-# Load a pre-trained phishing detection model (placeholder)
-model=joblib.load('phishing_detector_model.pkl')    # Replace with actual model
 
 # Example criteria for fraud detection
 def extract_features(email_data):
     """
-    Extract features from email content to match the model's feature set.
+    Extracts features from email content to match the model's training feature set.
     """
     subject = email_data.get("subject", "")
     body = email_data.get("body", "")
@@ -23,18 +21,47 @@ def extract_features(email_data):
     sender_domain = tldextract.extract(sender).domain
     link_domains = [tldextract.extract(link).domain for link in links]
 
-    # Updated feature set (placeholder for all 30 features)
+    # Shortened URL detection
+    shortened_services = ["bit.ly", "tinyurl", "goo.gl", "ow.ly", "t.co"]
+
+    # Features aligned with dataset
     features = {
-        "has_suspicious_links": any("@" not in link.split("/")[2] for link in links),
-        "urgent_language": any(word in body.lower() for word in ["urgent", "act now", "verify"]),
-        "unusual_sender": sender.endswith("xyz") or sender.startswith("no-reply"),
-        "link_domain_mismatch": any(domain != sender_domain for domain in link_domains if domain),
-        "empty_subject": len(subject.strip()) == 0,
-        # Add placeholders or compute the rest of the required features
-        **{f"feature_{i}": 0 for i in range(5, 30)},  # Replace with actual logic
+        "having_IP": 1 if re.search(r'\d+\.\d+\.\d+\.\d+', sender) else -1,
+        "URL_Length": 1 if len(links[0]) > 75 else -1 if links else 0,
+        "Shortining_Service": 1 if any(domain in shortened_services for domain in link_domains) else -1,
+        "having_At_Symbol": 1 if "@" in sender else -1,
+        "double_slash_redirecting": 1 if "//" in body.split("://")[1] else -1 if links else 0,
+        "Prefix_Suffix": 1 if '-' in sender else -1,
+        "having_Sub_Domain": 1 if sender_domain.count('.') > 1 else -1,
+        "SSLfinal_State": 1 if "https" in sender else -1,
+        "Domain_registeration_length": -1,  # Placeholder (Need WHOIS lookup)
+        "Favicon": 1 if "<link rel='icon'" in body else -1,
+        "port": 1,  # Placeholder (Requires Network Analysis)
+        "HTTPS_token": 1 if "https" in sender_domain else -1,
+        "Request_URL": 1 if any(domain != sender_domain for domain in link_domains if domain) else -1,
+        "URL_of_Anchor": -1 if "click here" in body.lower() else 1,
+        "Links_in_tags": 1 if len(links) > 5 else -1,
+        "SFH": 1 if "form action=" in body else -1,
+        "Submitting_to_email": 1 if "mailto:" in body else -1,
+        "Abnormal_URL": 1 if sender_domain == "xyz" else -1,
+        "Redirect": 1 if "window.location" in body else -1,
+        "on_mouseover": 1 if "onmouseover" in body else -1,
+        "RightClick": 1 if "oncontextmenu" in body else -1,
+        "popUpWidnow": 1 if "window.open" in body else -1,
+        "Iframe": 1 if "<iframe" in body.lower() else -1,
+        "age_of_domain": -1,  # Placeholder (Needs WHOIS lookup)
+        "DNSRecord": -1,  # Placeholder (Needs WHOIS lookup)
+        "web_traffic": -1,  # Placeholder (Requires Alexa API)
+        "Page_Rank": -1,  # Placeholder
+        "Google_Index": 1 if "google.com" in sender else -1,
+        "Links_pointing_to_page": -1 if len(links) < 2 else 1,
     }
+
     return np.array(list(features.values())).reshape(1, -1)
 
+# Load model and scaler
+model=joblib.load('phishing_detector_model.pkl')
+scaler = joblib.load('scaler.pkl')
 
 
 @app.route('/detect_phishing', methods=['POST'])
@@ -46,35 +73,19 @@ def detect_phishing():
     if not email_data:
         return jsonify({"error":"Invalid input. Provide email data."}), 400
 
-    required_field=["subject","body","sender"]
-    missing_field=[field for field in required_field if field not in email_data]
-
-    if missing_field:
-        return jsonify({"error":f"Missing Field: {','.join(missing_field)}"}), 400
-
-
-    # Extract feature
+    # Extract features & scale them
     features=extract_features(email_data)
+    features=scaler.transform(features) # Apply scaling
 
     # Predict phishing status
     prediction=model.predict(features)[0]
     probability=model.predict_proba(features)[0,1]
 
-    # Generate explanation
-    reason=[]
-    if features[0,0]:   # has_suspicious_links
-        reason.append("Suspicious links detected.")
-    if features[0,1]:   # urgent_language
-        reason.append("Urgent language used.")
-    if features[0,2]:   # unusual_sender
-        reason.append("Sender domain appears suspicious.")
 
     result={
         "is_phishing":bool(prediction),
         "confidence":probability,
-        "reason":reason if reason else "No significant phishing indicators detected.",
-        "recommendation": "Do not click any links or share sensitive information if flagged as phishing."
-
+        "recommendation": "Avoid clicking links if flagged as phishing."
     }
 
     return jsonify(result)
