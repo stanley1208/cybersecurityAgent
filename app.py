@@ -66,26 +66,22 @@ scaler = joblib.load('scaler.pkl')
 
 @app.route('/detect_phishing', methods=['POST'])
 def detect_phishing():
-
-    email_data=request.json
-
-    # Validate input
+    email_data = request.json
     if not email_data:
-        return jsonify({"error":"Invalid input. Provide email data."}), 400
+        return jsonify({"error": "Invalid input. Provide email data."}), 400
 
-    # Extract features & scale them
-    features=extract_features(email_data)
-    features=scaler.transform(features) # Apply scaling
+    features = extract_features(email_data)
+    features = scaler.transform(features)
 
-    # Predict phishing status
-    prediction=model.predict(features)[0]
-    probability=model.predict_proba(features)[0,1]
+    probability = model.predict_proba(features)[0, 1]  # Probability of phishing
 
+    threshold = 0.4  # Lower threshold to reduce false alarms
+    is_phishing = probability > threshold
 
-    result={
-        "is_phishing":bool(prediction),
-        "confidence":probability,
-        "recommendation": "Avoid clicking links if flagged as phishing."
+    result = {
+        "is_phishing": is_phishing,
+        "confidence": probability,
+        "recommendation": "Avoid clicking links if flagged as phishing." if is_phishing else "Email seems safe."
     }
 
     return jsonify(result)
