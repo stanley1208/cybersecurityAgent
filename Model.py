@@ -8,20 +8,28 @@ import pandas as pd
 import joblib
 
 # Load dataset
-data = pd.read_csv("Phising_Training_Dataset.csv")
+df = pd.read_csv("Phising_Training_Dataset.csv")
 
-# Convert -1 labels to 0
-data["Statistical_report"] = data["Statistical_report"].replace(-1, 0)
+# Drop 'key' column (not needed for training)
+df.drop(columns=['key'], inplace=True)
 
-# Remove unnecessary columns
-X = data.drop(columns=["Statistical_report", "Result"])
-y = data["Statistical_report"]
+# Convert -1 labels to 0 (Ensures consistency with Flask app)
+df["Statistical_report"] = df["Statistical_report"].replace(-1, 0)
+
+# Features (X) and Labels (y)
+X = df.drop(columns=["Statistical_report", "Result"])  # Drop 'Result' if it exists
+
+y = df["Statistical_report"]  # Labels
+
+print("Training Features:", list(X.columns))
+print("Total Features in Training:", len(X.columns))
+
 
 # Normalize numerical features
 scaler = StandardScaler()
 X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
-# Apply SMOTE to balance classes
+# Apply SMOTE if needed (to balance classes)
 smote = SMOTE(sampling_strategy='auto', random_state=42)
 X_resampled, y_resampled = smote.fit_resample(X_scaled, y)
 
@@ -49,6 +57,6 @@ y_pred = best_model.predict(X_test)
 print("Classification Report:\n", classification_report(y_test, y_pred))
 print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
 
-# Save model & scaler
+# Save model & scaler for Flask app
 joblib.dump(best_model, "phishing_detector_model.pkl")
 joblib.dump(scaler, "scaler.pkl")

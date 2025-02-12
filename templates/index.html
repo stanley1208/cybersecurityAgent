@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Detector</title>
+</head>
+<body>
+    <h1>AI-Powered Phishing Detector</h1>
+    <form action="/detect_phishing/" method="POST">
+        <label for="subject">Email Subject:</label><br>
+        <input type="text" id="subject" name="subject" required><br><br>
+
+        <label for="body">Email Body:</label><br>
+        <textarea id="body" name="body" rows="4" cols="50" required></textarea><br><br>
+
+        <label for="sender">Sender Email:</label><br>
+        <input type="email" id="sender" name="sender" required><br><br>
+
+        <button type="submit">Check for Phishing</button>
+    </form>
+</body>
+</html>
